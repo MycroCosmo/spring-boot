@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -20,8 +21,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.core.convert.converter.ConverterFactory;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.format.Printer;
 import org.springframework.format.support.FormattingConversionService;
+import org.springframework.util.NumberUtils;
 import org.springframework.util.StreamUtils;
 import org.springframework.util.function.ThrowingSupplier;
 
@@ -97,6 +101,47 @@ class ConversionServiceDeducerTests {
 		InputStream inputStream = new ByteArrayInputStream("test".getBytes(StandardCharsets.UTF_8));
 		assertThat(conversionServices).isNotNull();
 		assertThat(conversionServices.get(0).convert(inputStream, String.class)).isEqualTo("test");
+	}
+
+	@Test
+	void bindsPropertiesToSubtypesUsingConverterFactoryBeanMethodGenerics() {
+		try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+			context.getEnvironment()
+				.getPropertySources()
+				.addFirst(new MapPropertySource("test",
+						Map.of("test.integer", "number:42", "test.long-value", "number:43")));
+			context.register(ConverterFactoryConfiguration.class);
+			context.refresh();
+			NumberProperties properties = context.getBean(NumberProperties.class);
+			assertThat(properties.integer()).isEqualTo(42);
+			assertThat(properties.longValue()).isEqualTo(43L);
+		}
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	@EnableConfigurationProperties(NumberProperties.class)
+	static class ConverterFactoryConfiguration {
+
+		@Bean
+		@ConfigurationPropertiesBinding
+		static ConverterFactory<String, Number> numberConverterFactory() {
+			return new NumberConverterFactory<>();
+		}
+
+	}
+
+	static class NumberConverterFactory<N extends Number> implements ConverterFactory<String, N> {
+
+		@Override
+		public <T extends N> Converter<String, T> getConverter(Class<T> targetType) {
+			return (source) -> NumberUtils.parseNumber(source.substring("number:".length()), targetType);
+		}
+
+	}
+
+	@ConfigurationProperties("test")
+	record NumberProperties(Integer integer, Long longValue) {
+
 	}
 
 	@Configuration(proxyBeanMethods = false)

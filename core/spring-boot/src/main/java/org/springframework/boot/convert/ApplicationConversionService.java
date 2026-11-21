@@ -544,8 +544,7 @@ public class ApplicationConversionService extends FormattingConversionService {
 
 		@Override
 		public boolean matches(TypeDescriptor sourceType, TypeDescriptor targetType) {
-			return super.matches(sourceType, targetType)
-					&& conditionalConverterCandidateMatches(bean(), sourceType, targetType)
+			return conditionalConverterCandidateMatches(bean(), sourceType, targetType)
 					&& conditionalConverterCandidateMatches(getConverter(targetType::getType), sourceType, targetType);
 		}
 
